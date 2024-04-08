@@ -1,0 +1,83 @@
+---
+title: "Hollys Assignment 2"
+author: "Holly"
+date: "2024-03-29"
+output: html_document
+---
+
+```{r}
+#load in required packages 
+library(tidyverse)
+library(haven)
+#read in data set
+data <- read_spss("PSYR6003.A2.sav")
+
+#remove person who didnt choose male or female for sex, and people with missing values 
+data <- filter(data, sex != "Other (specify)")
+data <- na.omit(data)
+
+#recode sex to a factor variable 
+data <- mutate(data, sex = if_else(sex=="Male", 1, 0))
+
+#reverse code tipm.CONS2.3y
+data$tipm.CONS2.3y <- car::recode(data$tipm.CONS2.3y, 
+                               "1 = 7;2 = 6;3 = 5;5 = 3;6 = 2;7 = 1", as.numeric = TRUE)
+
+#subscale totals for socially prescribed perfectionism, conscientiousness, and negative affect
+data <- mutate(data, perfectionism = rowMeans(across(mps.SPP1.3y:mps.SPP5.3y)),
+                      negative_affect = rowMeans(across(guilt1.3y:host3.3y)), 
+                      conscientiousness = rowMeans(across(tipm.CONS1.3y:tipm.CONS2.3y)))
+```
+
+```{r}
+library(flexplot)
+#visualize the univariate distributions 
+flexplot(perfectionism~1, data = data)
+flexplot(conscientiousness~1, data = data)
+flexplot(sex~1, data = data)
+flexplot(negative_affect~1, data = data)
+
+#visualize the full statistical model for H1 
+flexplot(negative_affect~sex | conscientiousness + perfectionism, data=data)
+
+#run the diagnostics (assumptions) for H1
+model = lm(negative_affect~sex + conscientiousness + perfectionism, data=data)
+visualize(model, plot="residuals") 
+
+#sensitivity analysis to see if violation of noramlity assumption matters
+library(MASS)
+robust_model = rlm(negative_affect~sex + conscientiousness + perfectionism, data=data)
+#visualize robust model and original
+visualize(robust_model, plot="model") 
+visualize(model, plot = "model")
+
+#visualize the full statistical model for H2
+added.plot(negative_affect~sex + conscientiousness + perfectionism, data=data)
+```
+
+```{r}
+#run model, estimates, and summary for H1
+model <- lm(negative_affect~sex + conscientiousness + perfectionism, data=data)
+estimates(model)
+summary(model)
+
+#run model comparisons for H2
+reduced <- lm(negative_affect~sex + conscientiousness, data=data)
+full <- lm(negative_affect~sex + conscientiousness + perfectionism, data=data)
+model.comparison(reduced, full)
+#full is better cuz has smaller aic and bic, bigger bayes, and bigger rsq
+```
+
+```{r}
+#Create table for descriptive statistics and correlations of analysis variables 
+library(apaTables)
+
+tabledata <- dplyr::select(data, perfectionism, conscientiousness, negative_affect, sex)
+
+table1 <- apa.cor.table(tabledata, 
+                        table.number=1, filename = "Table1.doc")
+
+#Create table for multiple regression results
+table2<-apa.reg.table(model,
+                      table.number = 2, filename ="table2.doc")
+```
